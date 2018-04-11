@@ -80,6 +80,7 @@ struct picture_t
      * but should never be written directly */
     /**@{*/
     mtime_t         date;                                  /**< display date */
+    mtime_t         stream_date;                           /**< display date */
     bool            b_force;
     /**@}*/
 

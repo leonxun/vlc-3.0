@@ -1039,6 +1039,8 @@ static int DecoderPlayVideo( decoder_t *p_dec, picture_t *p_picture,
 
     const bool b_dated = p_picture->date > VLC_TS_INVALID;
     int i_rate = INPUT_RATE_DEFAULT;
+
+    p_picture->stream_date = p_picture->date;
     DecoderFixTs( p_dec, &p_picture->date, NULL, NULL,
                   &i_rate, DECODER_BOGUS_VIDEO_DELAY );
 

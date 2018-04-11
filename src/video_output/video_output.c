@@ -49,6 +49,9 @@
 #include <vlc_plugin.h>
 
 #include <libvlc.h>
+#include <vlc_network.h>
+#include <arpa/inet.h>
+
 #include "vout_internal.h"
 #include "interlacing.h"
 #include "display.h"
@@ -73,6 +76,13 @@ static void VoutDestructor(vlc_object_t *);
 
 /* Better be in advance when awakening than late... */
 #define VOUT_MWAIT_TOLERANCE (INT64_C(4000))
+
+static int g_output_recv_socket = 0;
+static struct sockaddr_in g_output_recv_addr;
+static char g_output_recv_buf[32];
+static int g_wait_time = 0;
+static mtime_t g_stream_timestamp = 0;
+static mtime_t g_local_timestamp = 0;
 
 /* */
 static int VoutValidateFormat(video_format_t *dst,
@@ -867,7 +877,7 @@ static int ThreadDisplayPreparePicture(vout_thread_t *vout, bool reuse, bool fra
                         late_threshold = ((CLOCK_FREQ/2) * decoded->format.i_frame_rate_base) / decoded->format.i_frame_rate;
                     else
                         late_threshold = VOUT_DISPLAY_LATE_THRESHOLD;
-                    const mtime_t predicted = mdate() + 0; /* TODO improve */
+                    const mtime_t predicted = mdate() + 16666 * g_wait_time;
                     const mtime_t late = predicted - decoded->date;
                     if (late > late_threshold) {
                         msg_Warn(vout, "picture is too late to be displayed (missing %"PRId64" ms)", late/1000);
@@ -1197,7 +1207,8 @@ static int ThreadDisplayPicture(vout_thread_t *vout, mtime_t *deadline)
             ;
 
     const mtime_t date = mdate();
-    const mtime_t render_delay = vout_chrono_GetHigh(&vout->p->render) + VOUT_MWAIT_TOLERANCE;
+//    const mtime_t render_delay = vout_chrono_GetHigh(&vout->p->render) + VOUT_MWAIT_TOLERANCE;
+    const mtime_t render_delay = VOUT_MWAIT_TOLERANCE + 16666 * g_wait_time;
 
     bool drop_next_frame = frame_by_frame;
     mtime_t date_next = VLC_TS_INVALID;
@@ -1244,6 +1255,9 @@ static int ThreadDisplayPicture(vout_thread_t *vout, mtime_t *deadline)
     if (!vout->p->displayed.current)
         return VLC_EGENERIC;
 
+    g_stream_timestamp = vout->p->displayed.current->stream_date;
+    g_local_timestamp = vout->p->displayed.current->date;
+    //msg_Dbg(vout, "ThreadDisplayPicture date: %"PRId64" streamdate: %"PRId64"", vout->p->displayed.current->date, vout->p->displayed.current->stream_date);
     /* display the picture immediately */
     bool is_forced = frame_by_frame || force_refresh || vout->p->displayed.current->b_force;
     int ret = ThreadDisplayRenderPicture(vout, is_forced);
@@ -1778,6 +1792,72 @@ static int ThreadControl(vout_thread_t *vout, vout_control_cmd_t cmd)
     return 0;
 }
 
+static void *output_recv_thread(void *vout) {
+    vout_thread_t *object = vout;
+    msg_Dbg(object, "output_recv_thread start");
+    g_output_recv_socket = socket(AF_INET, SOCK_DGRAM, 0);
+    if (g_output_recv_socket <= 0) {
+        msg_Dbg(object, "output_recv_thread socket error");
+        return NULL;
+    }
+
+    int optval = 1;
+    if (setsockopt(g_output_recv_socket, SOL_SOCKET, SO_REUSEADDR,
+        (void *)&optval, sizeof(int)) < 0) {
+        msg_Dbg(object, "output_recv_thread setsockopt error");
+        return NULL;
+    }
+
+    memset(&g_output_recv_addr, 0, sizeof (struct sockaddr_in));
+    g_output_recv_addr.sin_family = AF_INET;
+    g_output_recv_addr.sin_port = htons(15300);
+    g_output_recv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+    if (bind(g_output_recv_socket, (struct sockaddr *)&g_output_recv_addr,
+        sizeof (struct sockaddr_in)) < 0) {
+        msg_Dbg(object, "output_recv_thread bind error");
+        return NULL;
+    }
+
+    int recvlen = 0;
+    struct sockaddr_in peeraddr;
+    socklen_t peerlen;
+    int updatetime = 0;
+
+    while (true) {
+        memset(g_output_recv_buf, 0, sizeof(g_output_recv_buf));
+        peerlen = sizeof(peeraddr);
+        recvlen = recvfrom(g_output_recv_socket, g_output_recv_buf,
+            sizeof(g_output_recv_buf), 0,
+            (struct sockaddr *)&peeraddr, &peerlen);
+
+        if (recvlen <= 0) {
+            break;
+        }
+
+        //msg_Dbg(object, "output_recv_thread recv data: %s", g_output_recv_buf);
+
+        if (strncmp(g_output_recv_buf, "get", 3) == 0) {
+            mtime_t stream_ts = g_stream_timestamp;
+            mtime_t local_ts = g_local_timestamp;
+            memset(g_output_recv_buf, 0, sizeof(g_output_recv_buf));
+            sprintf(g_output_recv_buf, "%lld,%lld,%d", stream_ts / 1000, local_ts / 1000, g_wait_time);
+            sendto(g_output_recv_socket, g_output_recv_buf,
+                strlen(g_output_recv_buf), 0,
+                (struct sockaddr *)&peeraddr, peerlen);
+        } else if (strncmp(g_output_recv_buf, "set", 3) == 0) {
+            updatetime = atoi(g_output_recv_buf + 4);
+            if (updatetime >= -5 && updatetime <= 5) {
+                g_wait_time = updatetime;
+            }
+        } else {
+
+        }
+    }
+
+    return NULL;
+}
+
 /*****************************************************************************
  * Thread: video output thread
  *****************************************************************************
@@ -1792,6 +1872,13 @@ static void *Thread(void *object)
 
     mtime_t deadline = VLC_TS_INVALID;
     bool wait = false;
+
+    if (g_output_recv_socket == 0) {
+        g_output_recv_socket = -1;
+        pthread_t ntid;
+        pthread_create(&ntid, NULL, output_recv_thread, vout);
+    }
+
     for (;;) {
         vout_control_cmd_t cmd;
 
