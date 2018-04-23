@@ -176,6 +176,7 @@ typedef struct
     int64_t         i_lastpts;
     int64_t         i_pcr;
     double          f_npt;
+    int             i_IFrameCount;    /* count I frame packet number, used for checking first I packet, or led to garbage display when playing first picture */ 
 
     enum
     {
@@ -1055,6 +1056,7 @@ static int SessionsSetup( demux_t *p_demux )
 
                     tk->fmt.i_codec = VLC_CODEC_H264;
                     tk->fmt.b_packetized = false;
+                    tk->i_IFrameCount = 0;// Initialize to zero
 
                     if((p_extra=parseH264ConfigStr( sub->fmtp_spropparametersets(),
                                                     i_extra ) ) )
@@ -1929,7 +1931,7 @@ static void StreamRead( void *p_private, unsigned int i_size,
     live_track_t   *tk = (live_track_t*)p_private;
     demux_t        *p_demux = tk->p_demux;
     demux_sys_t    *p_sys = p_demux->p_sys;
-    block_t        *p_block;
+    block_t        *p_block = NULL;
 
     //msg_Dbg( p_demux, "pts: %d", pts.tv_sec );
 
@@ -2069,15 +2071,33 @@ static void StreamRead( void *p_private, unsigned int i_size,
         else if( tk->fmt.i_codec == VLC_CODEC_HEVC && ((tk->p_buffer[0] & 0x7e)>>1) >= 48 )
             msg_Warn( p_demux, "unsupported NAL type for H265" );
 
-        /* Normal NAL type */
-        if( (p_block = block_Alloc( i_size + 4 )) )
+
+        if(tk->fmt.i_codec == VLC_CODEC_H264 )// check i frame for h264
         {
-            p_block->p_buffer[0] = 0x00;
-            p_block->p_buffer[1] = 0x00;
-            p_block->p_buffer[2] = 0x00;
-            p_block->p_buffer[3] = 0x01;
-            memcpy( &p_block->p_buffer[4], tk->p_buffer, i_size );
+            if(5 == (tk->p_buffer[0] & 0x1f))
+               tk->i_IFrameCount++;
+            //msg_Dbg( p_demux, "h264 Current NAL type is %d",tk->p_buffer[0] & 0x1f );
         }
+        else // check i frame for h265
+        {
+            if(19 == (tk->p_buffer[0] & 0x7e)>>1)
+                tk->i_IFrameCount++;
+            //msg_Dbg( p_demux, "h265 Current NAL type is %d",(tk->p_buffer[0] & 0x7e)>>1 );
+        }
+
+        /* Normal NAL type */
+       if(tk->i_IFrameCount > 0) /* check first i frame arrived*/
+       {
+           if(p_block = block_Alloc( i_size + 4 ))
+           {
+               p_block->p_buffer[0] = 0x00;
+               p_block->p_buffer[1] = 0x00;
+               p_block->p_buffer[2] = 0x00;
+               p_block->p_buffer[3] = 0x01;
+               memcpy( &p_block->p_buffer[4], tk->p_buffer, i_size );
+           }
+       }
+
     }
     else if( tk->format == live_track_t::ASF_STREAM )
     {
