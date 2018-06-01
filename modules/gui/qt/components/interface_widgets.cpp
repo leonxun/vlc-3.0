@@ -785,6 +785,7 @@ void SpeedControlWidget::updateRate( int sliderValue )
 {
     if( sliderValue == lastValue )
         return;
+    lastValue = sliderValue;
 
     double speed = pow( 2, (double)sliderValue / 17 );
     int rate = INPUT_RATE_DEFAULT / speed;
@@ -900,7 +901,12 @@ void CoverArtLabel::clear()
 }
 
 TimeLabel::TimeLabel( intf_thread_t *_p_intf, TimeLabel::Display _displayType  )
-    : ClickableQLabel(), p_intf( _p_intf ), displayType( _displayType )
+    : ClickableQLabel()
+    , p_intf( _p_intf )
+    , cachedPos( -1 )
+    , cachedTime( 0 )
+    , cachedLength( 0 )
+    , displayType( _displayType )
 {
     b_remainingTime = false;
     if( _displayType != TimeLabel::Elapsed )
@@ -927,6 +933,9 @@ TimeLabel::TimeLabel( intf_thread_t *_p_intf, TimeLabel::Display _displayType  )
     }
     setAlignment( Qt::AlignRight | Qt::AlignVCenter );
 
+    CONNECT( THEMIM->getIM(), seekRequested( float ),
+             this, setDisplayPosition( float ) );
+
     CONNECT( THEMIM->getIM(), positionUpdated( float, int64_t, int ),
               this, setDisplayPosition( float, int64_t, int ) );
 
@@ -941,12 +950,21 @@ TimeLabel::TimeLabel( intf_thread_t *_p_intf, TimeLabel::Display _displayType  )
 
 void TimeLabel::setRemainingTime( bool remainingTime )
 {
-    if (displayType != TimeLabel::Elapsed)
+    if( displayType != TimeLabel::Elapsed )
+    {
         b_remainingTime = remainingTime;
+        refresh();
+    }
+}
+
+void TimeLabel::refresh()
+{
+    setDisplayPosition( cachedPos, cachedTime, cachedLength );
 }
 
 void TimeLabel::setDisplayPosition( float pos, int64_t t, int length )
 {
+    cachedPos = pos;
     if( pos == -1.f )
     {
         setMinimumSize( QSize( 0, 0 ) );
@@ -1008,28 +1026,14 @@ void TimeLabel::setDisplayPosition( float pos, int64_t t, int length )
             break;
     }
     cachedLength = length;
+    cachedTime = t;
 }
 
 void TimeLabel::setDisplayPosition( float pos )
 {
-    if( pos == -1.f || cachedLength == 0 )
-    {
-        setText( " --:--/--:-- " );
-        return;
-    }
-
-    int time = pos * cachedLength;
-    secstotimestr( psz_time,
-                   ( b_remainingTime && cachedLength ?
-                   cachedLength - time : time ) );
-    QString timestr = QString( "%1%2/%3" )
-        .arg( QString( (b_remainingTime && cachedLength) ? "-" : "" ) )
-        .arg( QString( psz_time ) )
-        .arg( QString( ( !cachedLength && time ) ? "--:--" : psz_length ) );
-
-    setText( timestr );
+    int64_t time = pos * cachedLength * 1000000;
+    setDisplayPosition( pos, time, cachedLength );
 }
-
 
 void TimeLabel::toggleTimeDisplay()
 {
