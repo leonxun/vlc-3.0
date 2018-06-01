@@ -1,8 +1,62 @@
+Changes between 3.0.3 and 3.0.4:
+--------------------------------
+
+
+
+Changes between 3.0.2 and 3.0.3:
+--------------------------------
+
+Core:
+ * Update subtitles display while paused
+
+Access:
+ * Enable srt support on binary builds
+
+Decoders:
+ * Allow videotoolbox hardware decoding to be disabled
+ * Disable VideoToolbox for 10bits H.264
+ * Fix VideoToolbox with some invalid HEVC streams
+ * Fix subsdec wide character support
+ * Fix 1st order Ambisonics in AAC
+
+Demux:
+ * Miscellaneous ogg improvements & bugfixes, including oggds
+ * Fix forced tracks selection
+ * Fix Topfield files
+ * Probe AAC/ADTS inside TS
+ * Fix tracks detection issues with DolbyVision and Bluray streams
+
+macOS:
+ * Fix "Open Network Stream" URL box focus
+ * Add option to disable hardware acceleration for video decoding
+ * Remove option to force dolby mode from simple preferences
+
+Video Output:
+ * Fix crashes on Direct3D11
+
+Qt:
+ * Fix tooltip display on some desktop environments
+ * Fix spurious movement of the main Window
+ * Fix playlist being displayed in fullscreen
+
+Misc:
+ * Fix amem output
+ * Fix numerous issues on fonts fallback and font shaping
+ * Fix subtitles toggle through hotkeys
+ * Fix audioscrobbling
+ * Fix buffer over-read in avcodec audio encoding with non-default layouts
+ * Numerous 3rd party libraries updated, fixing security issues
+
+Translations:
+ * Update of most languages
+
+
 Changes between 3.0.1 and 3.0.2:
 --------------------------------
 
 Core:
  * Fix snapshotting with subtitles when using hardware acceleration
+ * Fix green/missing line/column when the picture dimensions are odd
 
 Decoders:
  * Important improvements in hardware decoding for macOS, notably faster,
@@ -10,6 +64,9 @@ Decoders:
  * Improve compatibility for DxVA2 and D3D11 decoding, fix crashes when seeking
    and fix blacklisting of broken drivers
  * Fix SSA subtitles forced alignment
+ * Fix E-AC-3 stuttering
+ * Fix MIDI playback on macOS
+ * Add playback support for ProRes 4444 XQ
 
 Demux:
  * Fix wrong colors in some AVI files
@@ -22,6 +79,9 @@ Demux:
  * Improve mkv opening & seeking speed
  * Fix display of chapters with no name defined
  * Miscellaneous MKV crash fixes
+ * Fix crash with multi-region DVDs
+ * Fix audio being muted on DVD chapter change
+ * Fix audio being muted when seeking in a BluRay disc
 
 Access:
  * Avoid a crash/assert in FTP after seeking
@@ -32,12 +92,15 @@ Audio output:
  * Allow a default device to be used by VLC
  * Only warn once about misconfiguration for AUhal devices on macOS
  * Improve resampling and latency computation for CoreAudio
+ * Passthrough is now disabled by default
 
 Audio filters:
  * Fix audio stutter after unpausing with headphones
  * Fix silence when dolby-surround was mis-selected in preferences
 
 Video output:
+ * Fix OpenGL crashes or bad display with semi-planar chromas
+ * Fix OpenGL interop (zero-copy) disabled for tvOS
  * Major rewrite of the iOS video output to fix numerous crashes
  * Important improvements of the D3D11 video output to use less memory
    and less GPU for HDR tone-mapping
@@ -46,6 +109,11 @@ Video output:
  * Fix transform filters with hardware decoding
  * Fix snapshot and filters with HEVC hardware decoding
  * Fix a buffer overrun during GPU/CPU image copy
+ * Fix glitches on DVD menus with Direct3D11
+ * Fix non-HDR content playback on HDR screens with Direct3D11
+ * Fix YUV full range displayed incorrectly in Direct3D11
+ * Fix miscellaneous crashes in Direct3D11
+ * Fix potential black screen with 10bits videos on Direct3D11
 
 macOS:
  * Fix Growl notifications on recent macOS versions
@@ -55,11 +123,19 @@ macOS:
  * Fix remember playback position
  * Fix Blu-ray disc Java menu
  * Fix swiping on time slider to change position
+ * Fix problems with restoring user name from keychain
+ * Fix localization issues
 
 Qt:
  * Fix last folder used in open dialogs
  * Allow to customize the seek jump when using the mousewheel
  * Fix fullscreen controller positionment on multiscreen setups
+ * Fix pasted URLs not being trimmed
+ * Fix jump size not being configurable
+ * Fix missing time labels updates
+ * Fix playback speed slider not accepting 1.0x value
+ * Fix raw input dump
+ * Fix window size after a fullscreen playback
 
 Misc:
  * Fix lua rc & oldrc interfaces host specification
@@ -70,6 +146,11 @@ Misc:
  * Fix MSI script for Windows
  * Fix libvlc_media_list not going to next media
  * Fix character encoding on win32 consoles
+ * Miscellaneous chromecast improvements
+ * Fix missing OSD navigation feedback
+ * Various VLSub improvements
+ * lua: Fix scripts not being loaded on some filesystems
+ * lua: Add vlc.io APIs to handle UTF-8 paths
 
 
 Changes between 3.0.0 and 3.0.1:
@@ -398,7 +479,7 @@ Service Discovery:
  * New mDNS services discovery using Bonjour (Mac OS X, tvOS, iOS)
  * Rewrite of the UPnP service discovery
 
-Mac OS X Interface:
+Mac OS X Interface
  * Drop support for Mac OS X 10.6 Snow Leopard
  * Support right-to-left user interface layout for right-to-left languages
  * New resizable fullscreen controller with improved design
@@ -525,7 +606,7 @@ Mac OS X:
    update to the newest version.
 
 Video Output:
- * Fix Direct2D9 output with odd offsets
+ * Fix Direct3D9 output with odd offsets
 
 Misc:
  * Fix crash in MTP
@@ -649,7 +730,7 @@ Decoder:
  * Fix crashes with libvpx
  * Use libass without caching dialog
 
-Video Ouptut:
+Video Output:
  * Fix green lines on Direct3D output
 
 Skins2:
@@ -4079,7 +4160,7 @@ Interfaces:
  * wxWidgets
     - Rename wxWindows interface in wxWidgets.
     - All the --wxwin-* options are now --wx-*
-    - Support for RTP streaming in Stream Ouput dialog
+    - Support for RTP streaming in Stream Output dialog
     - Now require wx2.6 with Unicode support
  * Skins2
     - Tree playlist

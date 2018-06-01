@@ -572,7 +572,7 @@ static void SSE_Copy420_SP_to_SP(picture_t *dst, const uint8_t *src[static 2],
     SSE_CopyPlane(dst->p[0].p_pixels, dst->p[0].i_pitch, src[0], src_pitch[0],
                   cache->buffer, cache->size, height, 0);
     SSE_CopyPlane(dst->p[1].p_pixels, dst->p[1].i_pitch, src[1], src_pitch[1],
-                  cache->buffer, cache->size, height / 2, 0);
+                  cache->buffer, cache->size, (height+1) / 2, 0);
     asm volatile ("emms");
 }
 
@@ -587,7 +587,7 @@ SSE_Copy420_SP_to_P(picture_t *dest, const uint8_t *src[static 2],
     SSE_SplitPlanes(dest->p[1].p_pixels, dest->p[1].i_pitch,
                     dest->p[2].p_pixels, dest->p[2].i_pitch,
                     src[1], src_pitch[1], cache->buffer, cache->size,
-                    height / 2, pixel_size, bitshift);
+                    (height+1) / 2, pixel_size, bitshift);
     asm volatile ("emms");
 }
 
@@ -601,7 +601,7 @@ static void SSE_Copy420_P_to_SP(picture_t *dst, const uint8_t *src[static 3],
     SSE_InterleavePlanes(dst->p[1].p_pixels, dst->p[1].i_pitch,
                          src[U_PLANE], src_pitch[U_PLANE],
                          src[V_PLANE], src_pitch[V_PLANE],
-                         cache->buffer, cache->size, height / 2, pixel_size, bitshift);
+                         cache->buffer, cache->size, (height+1) / 2, pixel_size, bitshift);
     asm volatile ("emms");
 }
 #undef COPY64
@@ -672,7 +672,7 @@ void Copy420_SP_to_SP(picture_t *dst, const uint8_t *src[static 2],
     CopyPlane(dst->p[0].p_pixels, dst->p[0].i_pitch,
               src[0], src_pitch[0], height, 0);
     CopyPlane(dst->p[1].p_pixels, dst->p[1].i_pitch,
-              src[1], src_pitch[1], height/2, 0);
+              src[1], src_pitch[1], (height+1)/2, 0);
 }
 
 #define SPLIT_PLANES(type, pitch_den) do { \
@@ -747,7 +747,7 @@ void Copy420_SP_to_P(picture_t *dst, const uint8_t *src[static 2],
               src[0], src_pitch[0], height, 0);
     SplitPlanes(dst->p[1].p_pixels, dst->p[1].i_pitch,
                 dst->p[2].p_pixels, dst->p[2].i_pitch,
-                src[1], src_pitch[1], height/2);
+                src[1], src_pitch[1], (height+1)/2);
 }
 
 void Copy420_16_SP_to_P(picture_t *dst, const uint8_t *src[static 2],
@@ -768,7 +768,7 @@ void Copy420_16_SP_to_P(picture_t *dst, const uint8_t *src[static 2],
               src[0], src_pitch[0], height, bitshift);
     SplitPlanes16(dst->p[1].p_pixels, dst->p[1].i_pitch,
                   dst->p[2].p_pixels, dst->p[2].i_pitch,
-                  src[1], src_pitch[1], height/2, bitshift);
+                  src[1], src_pitch[1], (height+1)/2, bitshift);
 }
 
 #define INTERLEAVE_UV() do { \
@@ -822,7 +822,7 @@ void Copy420_P_to_SP(picture_t *dst, const uint8_t *src[static 3],
     CopyPlane(dst->p[0].p_pixels, dst->p[0].i_pitch,
               src[0], src_pitch[0], height, 0);
 
-    const unsigned copy_lines = height / 2;
+    const unsigned copy_lines = (height+1) / 2;
     const unsigned copy_pitch = src_pitch[1];
 
     const int i_extra_pitch_uv = dst->p[1].i_pitch - 2 * copy_pitch;
@@ -851,7 +851,7 @@ void Copy420_16_P_to_SP(picture_t *dst, const uint8_t *src[static 3],
     CopyPlane(dst->p[0].p_pixels, dst->p[0].i_pitch,
               src[0], src_pitch[0], height, bitshift);
 
-    const unsigned copy_lines = height / 2;
+    const unsigned copy_lines = (height+1) / 2;
     const unsigned copy_pitch = src_pitch[1] / 2;
 
     const int i_extra_pitch_uv = dst->p[1].i_pitch / 2 - 2 * copy_pitch;
@@ -926,9 +926,9 @@ void Copy420_P_to_P(picture_t *dst, const uint8_t *src[static 3],
      CopyPlane(dst->p[0].p_pixels, dst->p[0].i_pitch,
                src[0], src_pitch[0], height, 0);
      CopyPlane(dst->p[1].p_pixels, dst->p[1].i_pitch,
-               src[1], src_pitch[1], height / 2, 0);
+               src[1], src_pitch[1], (height+1) / 2, 0);
      CopyPlane(dst->p[2].p_pixels, dst->p[2].i_pitch,
-               src[2], src_pitch[2], height / 2, 0);
+               src[2], src_pitch[2], (height+1) / 2, 0);
 }
 
 void picture_SwapUV(picture_t *picture)
@@ -1141,8 +1141,8 @@ static picture_t *pic_new_unaligned(const video_format_t *fmt)
     picture_resource_t rsc = { .pf_destroy = pic_rsc_destroy };
     for (unsigned i = 0; i < dsc->plane_count; i++)
     {
-        rsc.p[i].i_lines = ((fmt->i_visible_height + 1) & ~ 1) * dsc->p[i].h.num / dsc->p[i].h.den;
-        rsc.p[i].i_pitch = ((fmt->i_visible_width + 1) & ~ 1) * dsc->pixel_size * dsc->p[i].w.num / dsc->p[i].w.den;
+        rsc.p[i].i_lines = ((fmt->i_visible_height + (dsc->p[i].h.den - 1)) / dsc->p[i].h.den) * dsc->p[i].h.num;
+        rsc.p[i].i_pitch = ((fmt->i_visible_width + (dsc->p[i].w.den - 1)) / dsc->p[i].w.den) * dsc->p[i].w.num * dsc->pixel_size;
         rsc.p[i].p_pixels = malloc(rsc.p[i].i_lines * rsc.p[i].i_pitch);
         assert(rsc.p[i].p_pixels);
     }

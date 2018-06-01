@@ -35,8 +35,6 @@
 #include "input_manager.hpp"
 #include "imagehelper.hpp"
 
-#include <vlc_actions.h>
-
 #include <QPaintEvent>
 #include <QPainter>
 #include <QBitmap>
@@ -403,10 +401,13 @@ void SeekSlider::wheelEvent( QWheelEvent *event )
     /* Don't do anything if we are for somehow reason sliding */
     if( !isSliding && isEnabled() )
     {
-        if ( event->delta() > 0 )
-            var_SetInteger( p_intf->obj.libvlc, "key-action", ACTIONID_JUMP_BACKWARD_SHORT );
-        else
-            var_SetInteger( p_intf->obj.libvlc, "key-action", ACTIONID_JUMP_FORWARD_SHORT );
+        mtime_t i_size = var_InheritInteger( p_intf->obj.libvlc, "short-jump-size" );
+        int i_mode = var_InheritInteger( p_intf->obj.libvlc, "hotkeys-x-wheel-mode" );
+        if ( ( event->delta() < 0 && i_mode != 3 ) || ( event->delta() > 0 && i_mode == 3 ) )
+            i_size = - i_size;
+        float posOffset = static_cast<float>( i_size ) / static_cast<float>( inputLength );
+        setValue( value() + posOffset * maximum() );
+        emit sliderDragged( value() / static_cast<float>( maximum() ) );
     }
     event->accept();
 }

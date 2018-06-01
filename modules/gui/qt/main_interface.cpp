@@ -590,9 +590,6 @@ inline void MainInterface::createStatusBar()
     CONNECT( THEMIM->getIM(), encryptionChanged( bool ),
              this, showCryptedLabel( bool ) );
 
-    CONNECT( THEMIM->getIM(), seekRequested( float ),
-             timeLabel, setDisplayPosition( float ) );
-
     /* This shouldn't be necessary, but for somehow reason, the statusBarr
        starts at height of 20px and when a text is shown it needs more space.
        But, as the QMainWindow policy doesn't allow statusBar to change QMW's
@@ -649,7 +646,8 @@ inline void MainInterface::showTab( QWidget *widget, bool video_closing )
         widget = bgWidget;
 
     stackCentralOldWidget = stackCentralW->currentWidget();
-    stackWidgetsSizes[stackCentralOldWidget] = stackCentralW->size();
+    if( !isFullScreen() )
+        stackWidgetsSizes[stackCentralOldWidget] = stackCentralW->size();
 
     /* If we are playing video, embedded */
     if( !video_closing && videoWidget && THEMIM->getIM()->hasVideo() )
@@ -888,13 +886,13 @@ void MainInterface::setVideoFullScreen( bool fs )
                 msg_Dbg( p_intf, "Moving video to correct position");
                 move( QPoint( screenres.x(), screenres.y() ) );
             }
-
-            /* */
-            if( playlistWidget != NULL && playlistWidget->artContainer->currentWidget() == videoWidget )
-            {
-                showTab( videoWidget );
-            }
         }
+
+        if( playlistWidget != NULL && playlistWidget->artContainer->currentWidget() == videoWidget )
+            showTab( videoWidget );
+
+        /* we won't be able to get its windowed sized once in fullscreen, so update it now */
+        stackWidgetsSizes[stackCentralW->currentWidget()] = stackCentralW->size();
 
         /* */
         displayNormalView();
@@ -1342,9 +1340,8 @@ void MainInterface::resizeWindow(int w, int h)
          * By calling XMoveResizeWindow directly, Qt will not see our change
          * request until the ConfigureNotify event on success
          * and not at all if it is rejected. */
-        XMoveResizeWindow( QX11Info::display(), winId(),
-                          geometry().x() * dpr, geometry().y() * dpr,
-                          (unsigned int)size.width() * dpr, (unsigned int)size.height() * dpr);
+        XResizeWindow( QX11Info::display(), winId(),
+                       (unsigned int)size.width() * dpr, (unsigned int)size.height() * dpr);
         return;
     }
 #endif
