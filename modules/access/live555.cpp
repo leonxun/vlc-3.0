@@ -1442,7 +1442,7 @@ static int Demux( demux_t *p_demux )
             if( i_minpcr == VLC_TS_INVALID || ( tk->i_pcr != VLC_TS_INVALID && i_minpcr > tk->i_pcr ) )
                 i_minpcr = tk->i_pcr;
 			if(tk->fmt.i_cat == VIDEO_ES)
-				i_Videopcr = tk->i_pcr + 1000000;
+				i_Videopcr = tk->i_pcr + 300000;
         }
 		if(i_Videopcr != VLC_TS_INVALID)
 			i_minpcr = i_Videopcr;
