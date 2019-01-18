@@ -63,7 +63,7 @@ live555: $(LIVE555_FILE) .sum-live555
 	cd live && sed -e 's%-DSOLARIS%-DSOLARIS -DXLOCALE_NOT_USED%' -i.orig config.solaris-*bit
 ifdef HAVE_ANDROID
 	# Disable locale on Android too
-	cd live && sed -e 's%-DPIC%-DPIC -DNO_SSTREAM=1 -DLOCALE_NOT_USED -I$(ANDROID_NDK)/platforms/$(ANDROID_API)/arch-$(PLATFORM_SHORT_ARCH)/usr/include%' -i.orig config.linux
+	cd live && sed -e 's%-DPIC%-DPIC -DNO_SSTREAM=1 -DLOCALE_NOT_USED -I$(ANDROID_NDK)/platforms/android-$(ANDROID_API)/arch-$(PLATFORM_SHORT_ARCH)/usr/include%' -i.orig config.linux
 endif
 	mv live live.$(LIVE555_VERSION)
 	# Patch for MSG_NOSIGNAL
@@ -76,6 +76,16 @@ endif
 	$(APPLY) $(SRC)/live555/add-pkgconfig-file.patch
 	# Expose Server:
 	$(APPLY) $(SRC)/live555/expose_server_string.patch
+ifdef HAVE_ANDROID
+ifneq ($(LEGACY_NDK), 1)
+	# Always access in_addr.s_addr field
+	$(APPLY) $(SRC)/live555/in_addr-s_addr-field.patch
+	# Don't use unavailable off64_t functions
+	$(APPLY) $(SRC)/live555/file-offset-bits-64.patch
+endif
+endif
+	# Fix creating static libs on mingw
+	$(APPLY) $(SRC)/live555/mingw-static-libs.patch
 
 	mv live.$(LIVE555_VERSION) $@ && touch $@
 

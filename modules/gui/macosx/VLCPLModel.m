@@ -42,6 +42,22 @@
 #include <vlc_input.h>
 #include <vlc_url.h>
 
+@interface VLCPLModel ()
+{
+    playlist_t *p_playlist;
+    __weak NSOutlineView *_outlineView;
+
+    NSUInteger _retainedRowSelection;
+}
+
+- (void)VLCPLItemAppended:(NSArray *)valueArray;
+- (void)VLCPLItemRemoved:(NSNumber *)value;
+- (void)VLCPLItemUpdated;
+
+@end
+
+#pragma mark -
+
 static int VLCPLItemUpdated(vlc_object_t *p_this, const char *psz_var,
                          vlc_value_t oldval, vlc_value_t new_val, void *param)
 {
@@ -104,15 +120,6 @@ static int VolumeUpdated(vlc_object_t *p_this, const char *psz_var,
 }
 
 #pragma mark -
-
-@interface VLCPLModel ()
-{
-    playlist_t *p_playlist;
-    __weak NSOutlineView *_outlineView;
-
-    NSUInteger _retainedRowSelection;
-}
-@end
 
 @implementation VLCPLModel
 
@@ -705,14 +712,19 @@ static int VolumeUpdated(vlc_object_t *p_this, const char *psz_var,
         PL_UNLOCK;
         free(pp_items);
 
+        // FIXME: Fix below code to avoid rebuilding the whole model
         // rebuild our model
-        NSUInteger filteredItemsCount = [o_filteredItems count];
-        for(NSUInteger i = 0; i < filteredItemsCount; ++i) {
-            VLCPLItem *o_item = [o_filteredItems objectAtIndex:i];
-            NSLog(@"delete child from parent %p", [o_item parent]);
-            [[o_item parent] deleteChild:o_item];
-            [targetItem addChild:o_item atPos:index + i];
-        }
+//        NSUInteger filteredItemsCount = [o_filteredItems count];
+//        for(int i = 0; i < filteredItemsCount; ++i) {
+//            VLCPLItem *o_item = [o_filteredItems objectAtIndex:i];
+//            NSLog(@"delete child from parent %p", [o_item parent]);
+//            [[o_item parent] deleteChild:o_item];
+//            [targetItem addChild:o_item atPos:(int)index + i];
+//        }
+
+        PL_LOCK;
+        [self rebuildVLCPLItem:_rootItem];
+        PL_UNLOCK;
 
         [_outlineView reloadData];
 

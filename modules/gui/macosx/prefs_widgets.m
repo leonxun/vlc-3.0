@@ -2197,7 +2197,6 @@ o_moduleenabled = [NSNumber numberWithBool:NO];\
               row:(NSInteger)dropRow dropOperation:(NSTableViewDropOperation)op;
 {
     NSPasteboard    *pb = [info draggingPasteboard];
-    NSDragOperation srcMask = [info draggingSourceOperationMask];
     BOOL accepted = NO;
 
     NS_DURING
@@ -2209,7 +2208,6 @@ o_moduleenabled = [NSNumber numberWithBool:NO];\
                       [pb propertyListForType:@"VLC media player module"]) != NULL) {
         NSEnumerator *iter = nil;
         id val;
-        BOOL isCopy = (srcMask & NSDragOperationMove) ? NO:YES;
         // Move the modules
         iter = [array objectEnumerator];
         while ((val = [iter nextObject]) != NULL) {

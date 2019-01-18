@@ -46,6 +46,7 @@ lua: lua-$(LUA_VERSION).tar.gz .sum-lua
 	$(APPLY) $(SRC)/lua/luac-32bits.patch
 	$(APPLY) $(SRC)/lua/no-localeconv.patch
 	$(APPLY) $(SRC)/lua/lua-ios-support.patch
+	$(APPLY) $(SRC)/lua/implib.patch
 ifdef HAVE_WINSTORE
 	$(APPLY) $(SRC)/lua/lua-winrt.patch
 endif
@@ -67,6 +68,7 @@ endif
 		-e 's%CC=%#CC=%' \
 		-e 's%= *strip%=$(STRIP)%' \
 		-e 's%= *ranlib%= $(RANLIB)%' \
+		-e 's%AR= *ar%AR= $(AR)%' \
 		Makefile
 	$(MOVE)
 
@@ -96,7 +98,7 @@ luac: lua-$(LUA_VERSION).tar.gz .sum-luac
 	# DO NOT use the same intermediate directory as the lua target
 	rm -Rf -- $@-$(LUA_VERSION) $@
 	mkdir -- $@-$(LUA_VERSION)
-	tar -x -v -z -C $@-$(LUA_VERSION) --strip-components=1 -f $<
+	tar -x -v -z -o -C $@-$(LUA_VERSION) --strip-components=1 -f $<
 	(cd luac-$(LUA_VERSION) && patch -p1) < $(SRC)/lua/luac-32bits.patch
 	mv luac-$(LUA_VERSION) luac
 
