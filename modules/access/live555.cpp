@@ -1424,6 +1424,7 @@ static int Demux( demux_t *p_demux )
     if( b_send_pcr )
     {
         mtime_t i_minpcr = VLC_TS_INVALID;
+		mtime_t i_Videopcr = VLC_TS_INVALID;
         bool b_need_flush = false;
 
         /* Check for gap in pts value */
@@ -1440,8 +1441,12 @@ static int Demux( demux_t *p_demux )
 
             if( i_minpcr == VLC_TS_INVALID || ( tk->i_pcr != VLC_TS_INVALID && i_minpcr > tk->i_pcr ) )
                 i_minpcr = tk->i_pcr;
+			if(tk->fmt.i_cat == VIDEO_ES)
+				i_Videopcr = tk->i_pcr + 300000;
         }
-
+		if(i_Videopcr != VLC_TS_INVALID)
+			i_minpcr = i_Videopcr;
+		
         if( p_sys->i_pcr > VLC_TS_INVALID && b_need_flush )
         {
             es_out_Control( p_demux->out, ES_OUT_RESET_PCR );
