@@ -165,6 +165,12 @@ static vout_thread_t *VoutCreate(vlc_object_t *object,
     vout->p->title.show     = var_InheritBool(vout, "video-title-show");
     vout->p->title.timeout  = var_InheritInteger(vout, "video-title-timeout");
     vout->p->title.position = var_InheritInteger(vout, "video-title-position");
+    //int custom_delay = var_InheritInteger(vout, "video-custom-delay");
+    // we use video-title-timeout for video delay
+    //vout->p->title.timeout = 1000;
+//	msg_Warn(vout, "video-title-show:%d", vout->p->title.show);
+	msg_Warn(vout, "video-title-timeout:%lld", vout->p->title.timeout);
+//	msg_Warn(vout, "video-title-position:%lld", vout->p->title.position);
 
     /* Get splitter name if present */
     vout->p->splitter_name = var_InheritString(vout, "video-splitter");
@@ -877,7 +883,7 @@ static int ThreadDisplayPreparePicture(vout_thread_t *vout, bool reuse, bool fra
                         late_threshold = ((CLOCK_FREQ/2) * decoded->format.i_frame_rate_base) / decoded->format.i_frame_rate;
                     else
                         late_threshold = VOUT_DISPLAY_LATE_THRESHOLD;
-                    const mtime_t predicted = mdate() + 16666 * g_wait_time;
+                    const mtime_t predicted = mdate() + 16666 * g_wait_time - vout->p->title.timeout * 1000;
                     const mtime_t late = predicted - decoded->date;
                     if (late > late_threshold) {
                         msg_Warn(vout, "picture is too late to be displayed (missing %"PRId64" ms)", late/1000);
@@ -1207,7 +1213,7 @@ static int ThreadDisplayPicture(vout_thread_t *vout, mtime_t *deadline)
             ;
 
     const mtime_t date = mdate();
-    const mtime_t render_delay = vout_chrono_GetHigh(&vout->p->render)+ 16666 * g_wait_time + VOUT_MWAIT_TOLERANCE;
+    const mtime_t render_delay = vout_chrono_GetHigh(&vout->p->render) + 16666 * g_wait_time + VOUT_MWAIT_TOLERANCE - vout->p->title.timeout * 1000;
 //    const mtime_t render_delay = VOUT_MWAIT_TOLERANCE + 16666 * g_wait_time;
 
     bool drop_next_frame = frame_by_frame;
@@ -1847,9 +1853,9 @@ static void *output_recv_thread(void *vout) {
                 (struct sockaddr *)&peeraddr, peerlen);
         } else if (strncmp(g_output_recv_buf, "set", 3) == 0) {
             updatetime = atoi(g_output_recv_buf + 4);
-            if (updatetime >= -5 && updatetime <= 5) {
+           // if (updatetime >= -5 && updatetime <= 5) {
                 g_wait_time = updatetime;
-            }
+           // }
         } else {
 
         }
