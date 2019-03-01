@@ -1207,8 +1207,8 @@ static int ThreadDisplayPicture(vout_thread_t *vout, mtime_t *deadline)
             ;
 
     const mtime_t date = mdate();
-//    const mtime_t render_delay = vout_chrono_GetHigh(&vout->p->render) + VOUT_MWAIT_TOLERANCE;
-    const mtime_t render_delay = VOUT_MWAIT_TOLERANCE + 16666 * g_wait_time;
+    const mtime_t render_delay = vout_chrono_GetHigh(&vout->p->render)+ 16666 * g_wait_time + VOUT_MWAIT_TOLERANCE;
+//    const mtime_t render_delay = VOUT_MWAIT_TOLERANCE + 16666 * g_wait_time;
 
     bool drop_next_frame = frame_by_frame;
     mtime_t date_next = VLC_TS_INVALID;
