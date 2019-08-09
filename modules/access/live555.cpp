@@ -176,7 +176,7 @@ typedef struct
     int64_t         i_lastpts;
     int64_t         i_pcr;
     double          f_npt;
-    int             i_IFrameCount;    /* count I frame packet number, used for checking first I packet, or led to garbage display when playing first picture */ 
+    bool            b_getspspps;    /*used for checking first sps packet, or led to garbage display when playing first picture */ 
 
     enum
     {
@@ -1056,7 +1056,7 @@ static int SessionsSetup( demux_t *p_demux )
 
                     tk->fmt.i_codec = VLC_CODEC_H264;
                     tk->fmt.b_packetized = false;
-                    tk->i_IFrameCount = 0;// Initialize to zero
+                    tk->b_getspspps = false;// Initialize to false
 
                     if((p_extra=parseH264ConfigStr( sub->fmtp_spropparametersets(),
                                                     i_extra ) ) )
@@ -1076,7 +1076,7 @@ static int SessionsSetup( demux_t *p_demux )
 
                     tk->fmt.i_codec = VLC_CODEC_HEVC;
                     tk->fmt.b_packetized = false;
-
+					tk->b_getspspps = false;// Initialize to false
                     p_extra1 = parseH264ConfigStr( sub->fmtp_spropvps(), i_extra1 );
                     p_extra2 = parseH264ConfigStr( sub->fmtp_spropsps(), i_extra2 );
                     p_extra3 = parseH264ConfigStr( sub->fmtp_sproppps(), i_extra3 );
@@ -2077,21 +2077,26 @@ static void StreamRead( void *p_private, unsigned int i_size,
             msg_Warn( p_demux, "unsupported NAL type for H265" );
 
 
-        if(tk->fmt.i_codec == VLC_CODEC_H264 )// check i frame for h264
+		int iType;
+        if(tk->fmt.i_codec == VLC_CODEC_H264 )// check sps frame for h264
         {
-            if(5 == (tk->p_buffer[0] & 0x1f))
-               tk->i_IFrameCount++;
+		    iType = tk->p_buffer[0]& 0x1f;
+            if(7 == iType|| 
+				8 == iType)
+				tk->b_getspspps = true;
             //msg_Dbg( p_demux, "h264 Current NAL type is %d",tk->p_buffer[0] & 0x1f );
         }
-        else // check i frame for h265
+        else // check sps frame for h265
         {
-            if(19 == (tk->p_buffer[0] & 0x7e)>>1)
-                tk->i_IFrameCount++;
+		    iType = tk->p_buffer[0] & 0x7e)>>1;
+            if(33 == iType||
+				34 == iType)
+				tk->b_getspspps = true;
             //msg_Dbg( p_demux, "h265 Current NAL type is %d",(tk->p_buffer[0] & 0x7e)>>1 );
         }
 
         /* Normal NAL type */
-       if(tk->i_IFrameCount > 0) /* check first i frame arrived*/
+       if(tk->b_getspspps) /* check first i frame arrived*/
        {
            if(p_block = block_Alloc( i_size + 4 ))
            {
