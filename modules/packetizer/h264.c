@@ -2,7 +2,7 @@
  * h264.c: h264/avc video packetizer
  *****************************************************************************
  * Copyright (C) 2001, 2002, 2006 VLC authors and VideoLAN
- * $Id$
+ * $Id: 76b6ed5286e8acfd5fbc3290232f676c7c574aff $
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *          Eric Petit <titer@videolan.org>
@@ -53,6 +53,22 @@
 /*****************************************************************************
  * Module descriptor
  *****************************************************************************/
+
+
+/*
+* this file has been changed by nio.
+* the reason is: the logical before will buffer one frame,so it will result in 33ms latency in 30 fps case.
+* the logical before is:
+   a: receive a new frame
+   b: get a received frame from buffer to return for decode
+   c: store the new frame to buffer.
+
+*  now change the logical to:
+   a: receive a new frame and store it to buffer.
+   b: get a received frame from buffer to return for decode
+**/
+
+
 static int  Open ( vlc_object_t * );
 static void Close( vlc_object_t * );
 
@@ -599,6 +615,17 @@ static block_t *ParseNALBlock( decoder_t *p_dec, bool *pb_ts_used, block_t *p_fr
         cc_storage_reset( p_sys->p_ccs );
     }
 
+    *pb_ts_used = false;
+    if( p_sys->i_frame_dts <= VLC_TS_INVALID &&
+        p_sys->i_frame_pts <= VLC_TS_INVALID )
+    {
+        p_sys->i_frame_dts = i_frag_dts;
+        p_sys->i_frame_pts = i_frag_pts;
+        *pb_ts_used = true;
+        if( i_frag_dts > VLC_TS_INVALID )
+            date_Set( &p_sys->dts, i_frag_dts );
+    }
+
     switch( i_nal_type )
     {
         /*** Slices ***/
@@ -617,53 +644,60 @@ static block_t *ParseNALBlock( decoder_t *p_dec, bool *pb_ts_used, block_t *p_fr
                 p_sys->i_recoveryfnum = UINT_MAX;
             }
 
+
+            bool b_new_picture = false;
+            bool b_parse_slice_header = false;
             if( ParseSliceHeader( p_dec, p_frag, &newslice ) )
             {
                 /* Only IDR carries the id, to be propagated */
                 if( newslice.i_idr_pic_id == -1 )
                     newslice.i_idr_pic_id = p_sys->slice.i_idr_pic_id;
 
-                bool b_new_picture = IsFirstVCLNALUnit( &p_sys->slice, &newslice );
-                if( b_new_picture )
-                {
-                    /* Parse SEI for that frame now we should have matched SPS/PPS */
-                    for( block_t *p_sei = p_sys->leading.p_head; p_sei; p_sei = p_sei->p_next )
-                    {
-                        if( (p_sei->i_flags & BLOCK_FLAG_PRIVATE_SEI) == 0 )
-                            continue;
-                        HxxxParse_AnnexB_SEI( p_sei->p_buffer, p_sei->i_buffer,
-                                              1 /* nal header */, ParseSeiCallback, p_dec );
-                    }
+                b_new_picture = IsFirstVCLNALUnit( &p_sys->slice, &newslice );
 
-                    if( p_sys->b_slice )
-                        p_pic = OutputPicture( p_dec );
-                }
-
-                /* */
                 p_sys->slice = newslice;
+                b_parse_slice_header = true;
             }
             else
             {
                 p_sys->p_active_pps = NULL;
+                b_parse_slice_header = false;
                 /* Fragment will be discarded later on */
             }
-            p_sys->b_slice = true;
 
             block_ChainLastAppend( &p_sys->frame.pp_append, p_frag );
+            p_sys->b_slice = true;
+
+            if( b_new_picture )
+            {
+                /* Parse SEI for that frame now we should have matched SPS/PPS */
+                for( block_t *p_sei = p_sys->leading.p_head; p_sei; p_sei = p_sei->p_next )
+                {
+                    if( (p_sei->i_flags & BLOCK_FLAG_PRIVATE_SEI) == 0 )
+                        continue;
+                    HxxxParse_AnnexB_SEI( p_sei->p_buffer, p_sei->i_buffer,
+                                          1 /* nal header */, ParseSeiCallback, p_dec );
+                }
+
+                if( p_sys->b_slice )
+                    p_pic = OutputPicture( p_dec );
+            }
+
         } break;
 
         /*** Prefix NALs ***/
 
         case H264_NAL_AU_DELIMITER:
+
             if( p_sys->b_slice )
                 p_pic = OutputPicture( p_dec );
 
             /* clear junk if no pic, we're always the first nal */
             DropStoredNAL( p_sys );
-
             p_frag->i_flags |= BLOCK_FLAG_PRIVATE_AUD;
 
             block_ChainLastAppend( &p_sys->leading.pp_append, p_frag );
+
         break;
 
         case H264_NAL_SPS:
@@ -685,11 +719,12 @@ static block_t *ParseNALBlock( decoder_t *p_dec, bool *pb_ts_used, block_t *p_fr
         break;
 
         case H264_NAL_SEI:
-            if( p_sys->b_slice )
-                p_pic = OutputPicture( p_dec );
 
             p_frag->i_flags |= BLOCK_FLAG_PRIVATE_SEI;
             block_ChainLastAppend( &p_sys->leading.pp_append, p_frag );
+
+            if( p_sys->b_slice )
+                p_pic = OutputPicture( p_dec );
         break;
 
         case H264_NAL_SPS_EXT:
@@ -698,10 +733,9 @@ static block_t *ParseNALBlock( decoder_t *p_dec, bool *pb_ts_used, block_t *p_fr
         case H264_NAL_DEPTH_PS:
         case H264_NAL_RESERVED_17:
         case H264_NAL_RESERVED_18:
+            block_ChainLastAppend( &p_sys->leading.pp_append, p_frag );
             if( p_sys->b_slice )
                 p_pic = OutputPicture( p_dec );
-
-            block_ChainLastAppend( &p_sys->leading.pp_append, p_frag );
         break;
 
         /*** Suffix NALs ***/
@@ -729,17 +763,6 @@ static block_t *ParseNALBlock( decoder_t *p_dec, bool *pb_ts_used, block_t *p_fr
         break;
     }
 
-    *pb_ts_used = false;
-    if( p_sys->i_frame_dts <= VLC_TS_INVALID &&
-        p_sys->i_frame_pts <= VLC_TS_INVALID )
-    {
-        p_sys->i_frame_dts = i_frag_dts;
-        p_sys->i_frame_pts = i_frag_pts;
-        *pb_ts_used = true;
-        if( i_frag_dts > VLC_TS_INVALID )
-            date_Set( &p_sys->dts, i_frag_dts );
-    }
-
     if( p_pic && (p_pic->i_flags & BLOCK_FLAG_DROP) )
     {
         block_Release( p_pic );
@@ -751,6 +774,7 @@ static block_t *ParseNALBlock( decoder_t *p_dec, bool *pb_ts_used, block_t *p_fr
 
 static block_t *OutputPicture( decoder_t *p_dec )
 {
+
     decoder_sys_t *p_sys = p_dec->p_sys;
     block_t *p_pic = NULL;
     block_t **pp_pic_last = &p_pic;

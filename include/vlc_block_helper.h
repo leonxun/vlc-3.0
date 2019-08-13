@@ -366,4 +366,37 @@ static inline int block_FindStartcodeFromOffset(
     return VLC_EGENERIC;
 }
 
+static inline block_t * block_CheckStartcodeAndRelease(
+	block_t * block,
+	const uint8_t *p_startcode, int i_startcode_length)
+{
+	block_t * tmp_block = block;
+	while (tmp_block && tmp_block->i_buffer == i_startcode_length)
+	{
+		bool bFind = false;
+		for (int i = 0; i < i_startcode_length; i++)
+		{
+			if (p_startcode[i] != tmp_block->p_buffer[i])
+			{
+				bFind = false;
+				break;
+			}
+			if (i == i_startcode_length - 1)
+				bFind = true;
+		}
+		if (bFind)
+		{
+			block_t *p_next = tmp_block->p_next;
+
+			block_Release(tmp_block);
+			tmp_block = p_next;
+		}
+		else
+		{
+			break;
+		}
+	}
+	return tmp_block;
+}
+
 #endif /* VLC_BLOCK_HELPER_H */

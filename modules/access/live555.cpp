@@ -2,7 +2,7 @@
  * live555.cpp : LIVE555 Streaming Media support.
  *****************************************************************************
  * Copyright (C) 2003-2007 VLC authors and VideoLAN
- * $Id$
+ * $Id: 089bde20bf2bbf5994ba773169427e6e80d6c9be $
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *          Derk-Jan Hartman <hartman at videolan. org>
@@ -2088,7 +2088,7 @@ static void StreamRead( void *p_private, unsigned int i_size,
         }
         else // check sps frame for h265
         {
-		    iType = tk->p_buffer[0] & 0x7e)>>1;
+		    iType = (tk->p_buffer[0] & 0x7e)>>1;
             if(33 == iType||
 				34 == iType)
 				tk->b_getspspps = true;
@@ -2098,12 +2098,20 @@ static void StreamRead( void *p_private, unsigned int i_size,
         /* Normal NAL type */
        if(tk->b_getspspps) /* check first i frame arrived*/
        {
-           if(p_block = block_Alloc( i_size + 4 ))
+           if(p_block = block_Alloc( i_size + 4 + 4 ))
            {
                p_block->p_buffer[0] = 0x00;
                p_block->p_buffer[1] = 0x00;
                p_block->p_buffer[2] = 0x00;
                p_block->p_buffer[3] = 0x01;
+
+               //add StartCode at the end of block, let "packetizer" known:
+               //this is a NALU,no need to wait the next NALU(the wait will cost extra time,33ms in 30fps case)
+               p_block->p_buffer[i_size + 4 + 0] = 0x00;
+               p_block->p_buffer[i_size + 4 + 1] = 0x00;
+               p_block->p_buffer[i_size + 4 + 2] = 0x00;
+               p_block->p_buffer[i_size + 4 + 3] = 0x01;
+
                memcpy( &p_block->p_buffer[4], tk->p_buffer, i_size );
            }
        }
