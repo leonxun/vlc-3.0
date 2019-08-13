@@ -2,7 +2,7 @@
  * live555.cpp : LIVE555 Streaming Media support.
  *****************************************************************************
  * Copyright (C) 2003-2007 VLC authors and VideoLAN
- * $Id: 089bde20bf2bbf5994ba773169427e6e80d6c9be $
+ * $Id$
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *          Derk-Jan Hartman <hartman at videolan. org>
@@ -176,7 +176,7 @@ typedef struct
     int64_t         i_lastpts;
     int64_t         i_pcr;
     double          f_npt;
-    bool            b_getspspps;    /*used for checking first sps packet, or led to garbage display when playing first picture */ 
+    bool            b_canSendBlock;    /*used for checking first sps/I/pps packet, or led to garbage display when playing first picture */
 
     enum
     {
@@ -1056,7 +1056,7 @@ static int SessionsSetup( demux_t *p_demux )
 
                     tk->fmt.i_codec = VLC_CODEC_H264;
                     tk->fmt.b_packetized = false;
-                    tk->b_getspspps = false;// Initialize to false
+                    tk->b_canSendBlock = false;// Initialize to false
 
                     if((p_extra=parseH264ConfigStr( sub->fmtp_spropparametersets(),
                                                     i_extra ) ) )
@@ -1076,7 +1076,7 @@ static int SessionsSetup( demux_t *p_demux )
 
                     tk->fmt.i_codec = VLC_CODEC_HEVC;
                     tk->fmt.b_packetized = false;
-					tk->b_getspspps = false;// Initialize to false
+					tk->b_canSendBlock = false;// Initialize to false
                     p_extra1 = parseH264ConfigStr( sub->fmtp_spropvps(), i_extra1 );
                     p_extra2 = parseH264ConfigStr( sub->fmtp_spropsps(), i_extra2 );
                     p_extra3 = parseH264ConfigStr( sub->fmtp_sproppps(), i_extra3 );
@@ -2081,22 +2081,20 @@ static void StreamRead( void *p_private, unsigned int i_size,
         if(tk->fmt.i_codec == VLC_CODEC_H264 )// check sps frame for h264
         {
 		    iType = tk->p_buffer[0]& 0x1f;
-            if(7 == iType|| 
-				8 == iType)
-				tk->b_getspspps = true;
+            if(7 == iType|| 8 == iType || 5 == iType)
+				tk->b_canSendBlock = true;
             //msg_Dbg( p_demux, "h264 Current NAL type is %d",tk->p_buffer[0] & 0x1f );
         }
         else // check sps frame for h265
         {
 		    iType = (tk->p_buffer[0] & 0x7e)>>1;
-            if(33 == iType||
-				34 == iType)
-				tk->b_getspspps = true;
+            if(33 == iType || 34 == iType || 19 == iType)
+				tk->b_canSendBlock = true;
             //msg_Dbg( p_demux, "h265 Current NAL type is %d",(tk->p_buffer[0] & 0x7e)>>1 );
         }
 
         /* Normal NAL type */
-       if(tk->b_getspspps) /* check first i frame arrived*/
+       if(tk->b_canSendBlock) /* check first i frame arrived*/
        {
            if(p_block = block_Alloc( i_size + 4 + 4 ))
            {
