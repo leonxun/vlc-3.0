@@ -2,7 +2,7 @@
  * packetizer_helper.h: Packetizer helpers
  *****************************************************************************
  * Copyright (C) 2009 Laurent Aimar
- * $Id$
+ * $Id: f7711895707b7eca77a8bbaee2f10fd4908224a6 $
  *
  * Authors: Laurent Aimar <fenrir _AT_ videolan _DOT_ org>
  *
@@ -141,7 +141,7 @@ static inline block_t *packetizer_Packetize( packetizer_t *p_pack, block_t **pp_
             /* Find a startcode */
             if( !block_FindStartcodeFromOffset( &p_pack->bytestream, &p_pack->i_offset,
                                                 p_pack->p_startcode, p_pack->i_startcode,
-                                                /*p_pack->pf_startcode_helper*/NULL, NULL ) )  //the function: pf_startcode_helper has bug: can not detect the StartCode.temporarily disable.
+                                                p_pack->pf_startcode_helper, NULL ) )  //for H264, pf_startcode_helper is NULL
                 p_pack->i_state = STATE_NEXT_SYNC;
 
             if( p_pack->i_offset )
@@ -161,7 +161,7 @@ static inline block_t *packetizer_Packetize( packetizer_t *p_pack, block_t **pp_
             /* Find the next startcode */
             if( block_FindStartcodeFromOffset( &p_pack->bytestream, &p_pack->i_offset,
                                                p_pack->p_startcode, p_pack->i_startcode,
-                                               /*p_pack->pf_startcode_helper*/NULL, NULL ) )  //the function: pf_startcode_helper has bug: can not detect the StartCode.temporarily disable.
+                                               p_pack->pf_startcode_helper, NULL ) )  //for H264, pf_startcode_helper is NULL
             {
                 if( pp_block /* not flushing */ || !p_pack->bytestream.p_chain )
                     return NULL; /* Need more data */

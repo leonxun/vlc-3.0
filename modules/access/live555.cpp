@@ -2,7 +2,7 @@
  * live555.cpp : LIVE555 Streaming Media support.
  *****************************************************************************
  * Copyright (C) 2003-2007 VLC authors and VideoLAN
- * $Id$
+ * $Id: e2c7ad5c6766a169395a87b95219a1739fa8a557 $
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *          Derk-Jan Hartman <hartman at videolan. org>
@@ -875,6 +875,7 @@ static int SessionsSetup( demux_t *p_demux )
             tk->state       = live_track_t::STATE_SELECTED;
             tk->i_buffer    = i_frame_buffer;
             tk->p_buffer    = (uint8_t *)malloc( i_frame_buffer );
+            tk->b_canSendBlock = true;
 
             if( !tk->p_buffer )
             {
@@ -2081,14 +2082,14 @@ static void StreamRead( void *p_private, unsigned int i_size,
         if(tk->fmt.i_codec == VLC_CODEC_H264 )// check sps frame for h264
         {
 		    iType = tk->p_buffer[0]& 0x1f;
-            if(7 == iType|| 8 == iType || 5 == iType)
+            if(7 == iType|| 8 == iType || 5 == iType)  // SPS/PPS
 				tk->b_canSendBlock = true;
             //msg_Dbg( p_demux, "h264 Current NAL type is %d",tk->p_buffer[0] & 0x1f );
         }
         else // check sps frame for h265
         {
 		    iType = (tk->p_buffer[0] & 0x7e)>>1;
-            if(33 == iType || 34 == iType || 19 == iType)
+            if(32 == iType || 33 == iType || 34 == iType || 19 == iType)  // VPS/SPS/PPS
 				tk->b_canSendBlock = true;
             //msg_Dbg( p_demux, "h265 Current NAL type is %d",(tk->p_buffer[0] & 0x7e)>>1 );
         }
@@ -2096,19 +2097,29 @@ static void StreamRead( void *p_private, unsigned int i_size,
         /* Normal NAL type */
        if(tk->b_canSendBlock) /* check first i frame arrived*/
        {
-           if(p_block = block_Alloc( i_size + 4 + 4 ))
+           if(VLC_CODEC_H264 == tk->fmt.i_codec)
+           {
+              if(p_block = block_Alloc( i_size + 4 + 4 ))
+              {
+                 //for h264, add StartCode at the end of block, let "packetizer" known:
+                 //this is a whole NALU,no need to wait the next NALU(the wait will cost extra time,33ms in 30fps case)
+                 p_block->p_buffer[i_size + 4 + 0] = 0x00;
+                 p_block->p_buffer[i_size + 4 + 1] = 0x00;
+                 p_block->p_buffer[i_size + 4 + 2] = 0x00;
+                 p_block->p_buffer[i_size + 4 + 3] = 0x01;
+              }
+           }
+           else
+           {
+                p_block = block_Alloc( i_size + 4 );
+           }
+
+           if( p_block )
            {
                p_block->p_buffer[0] = 0x00;
                p_block->p_buffer[1] = 0x00;
                p_block->p_buffer[2] = 0x00;
                p_block->p_buffer[3] = 0x01;
-
-               //add StartCode at the end of block, let "packetizer" known:
-               //this is a NALU,no need to wait the next NALU(the wait will cost extra time,33ms in 30fps case)
-               p_block->p_buffer[i_size + 4 + 0] = 0x00;
-               p_block->p_buffer[i_size + 4 + 1] = 0x00;
-               p_block->p_buffer[i_size + 4 + 2] = 0x00;
-               p_block->p_buffer[i_size + 4 + 3] = 0x01;
 
                memcpy( &p_block->p_buffer[4], tk->p_buffer, i_size );
            }
