@@ -2,7 +2,7 @@
  * live555.cpp : LIVE555 Streaming Media support.
  *****************************************************************************
  * Copyright (C) 2003-2007 VLC authors and VideoLAN
- * $Id: e2c7ad5c6766a169395a87b95219a1739fa8a557 $
+ * $Id$
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *          Derk-Jan Hartman <hartman at videolan. org>
@@ -1443,7 +1443,7 @@ static int Demux( demux_t *p_demux )
             if( i_minpcr == VLC_TS_INVALID || ( tk->i_pcr != VLC_TS_INVALID && i_minpcr > tk->i_pcr ) )
                 i_minpcr = tk->i_pcr;
 			if(tk->fmt.i_cat == VIDEO_ES)
-				i_Videopcr = tk->i_pcr + 300000;
+				i_Videopcr = tk->i_pcr + PCR_OFF;  //here add PCR_OFF to let es_out_SetPCR
         }
 		if(i_Videopcr != VLC_TS_INVALID)
 			i_minpcr = i_Videopcr;
