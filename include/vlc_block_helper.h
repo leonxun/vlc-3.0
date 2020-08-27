@@ -399,4 +399,65 @@ static inline block_t * block_CheckStartcodeAndRelease(
 	return tmp_block;
 }
 
+static inline bool block_BytestreamCheckStartcodeAndRelease(
+	block_bytestream_t *p_bytestream,
+	const uint8_t *p_startcode, int i_startcode_length)
+{
+	block_t *p_block;
+
+	block_BytestreamFlush(p_bytestream);
+
+	p_block = p_bytestream->p_block;
+	if (p_block == NULL)
+	{
+		return false;
+	}
+	else if (!p_block->p_next)
+	{
+		if (p_block->i_buffer == i_startcode_length + p_bytestream->i_block_offset)
+		{
+			bool bFind = false;
+			for (int i = 0; i < i_startcode_length; i++)
+			{
+				if (p_startcode[i] != p_block->p_buffer[i + p_bytestream->i_block_offset])
+				{
+					bFind = false;
+					break;
+				}
+				if (i == i_startcode_length - 1)
+					bFind = true;
+			}
+			if (bFind)
+			{
+				block_Release(p_block);
+				p_block = NULL;
+                p_bytestream->i_block_offset = 0;
+                p_bytestream->i_total = 0;
+                p_bytestream->p_chain = p_bytestream->p_block = NULL;
+                p_bytestream->pp_last = &p_bytestream->p_chain;
+
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+static inline char* block_buffer_byte_print(unsigned char* pBuf,int size)
+{
+    const int chars_per_byte = 5;
+    char* pLog = (char*)malloc(size * chars_per_byte + 1);
+    memset(pLog,0,size * chars_per_byte + 1);
+    for(int i = 0; i < size; i++)
+    {
+        if(pBuf[i] == 0)
+          sprintf(pLog + chars_per_byte * i,"0x%s,","00");
+        else
+          sprintf(pLog + chars_per_byte * i,"0x%02x,",pBuf[i]);
+    }
+    pLog[chars_per_byte * size - 1] = 0;
+    return pLog;
+}
+
 #endif /* VLC_BLOCK_HELPER_H */

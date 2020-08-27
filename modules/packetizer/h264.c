@@ -2,7 +2,7 @@
  * h264.c: h264/avc video packetizer
  *****************************************************************************
  * Copyright (C) 2001, 2002, 2006 VLC authors and VideoLAN
- * $Id: 76b6ed5286e8acfd5fbc3290232f676c7c574aff $
+ * $Id: 79e7931489645016f08399c21e7779a7b2c13cee $
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *          Eric Petit <titer@videolan.org>
@@ -47,6 +47,7 @@
 #include "hxxx_common.h"
 #include "packetizer_helper.h"
 #include "startcode_helper.h"
+#include "hxxx_helper.h"
 
 #include <limits.h>
 
@@ -165,7 +166,7 @@ static int PacketizeValidate( void *p_private, block_t * );
 static block_t *ParseNALBlock( decoder_t *, bool *pb_ts_used, block_t * );
 
 static block_t *OutputPicture( decoder_t *p_dec );
-static void PutSPS( decoder_t *p_dec, block_t *p_frag );
+static bool PutSPS( decoder_t *p_dec, block_t *p_frag );
 static void PutPPS( decoder_t *p_dec, block_t *p_frag );
 static bool ParseSliceHeader( decoder_t *p_dec, const block_t *p_frag, h264_slice_t *p_slice );
 static bool ParseSeiCallback( const hxxx_sei_data_t *, void * );
@@ -708,7 +709,34 @@ static block_t *ParseNALBlock( decoder_t *p_dec, bool *pb_ts_used, block_t *p_fr
             /* Stored for insert on keyframes */
             if( i_nal_type == H264_NAL_SPS )
             {
-                PutSPS( p_dec, p_frag );
+                block_t *p_newSPSBlock = NULL;
+                bool bNeedPutOldSPS = true;
+                if(write_sps_no_decoder_delay_flag_on_zx_platom(p_frag,&p_newSPSBlock))
+                {
+                    bool bRes = PutSPS(p_dec,p_newSPSBlock);
+                    bNeedPutOldSPS = !bRes;
+                    if(!bRes)
+                        msg_Dbg( p_dec, "SPS changed!,But PutSPS error, will reput the old sps!");
+                    else
+                        msg_Dbg( p_dec, "SPS changed!,and PutSPS done! newSize：%u, oldSize:%u",p_newSPSBlock->i_buffer,p_frag->i_buffer);
+
+
+                    /*char* pLog = block_buffer_byte_print(p_newSPSBlock->p_buffer,p_newSPSBlock->i_buffer);
+                    msg_Dbg( p_dec, "the new sps is:%s",pLog);
+                    free(pLog);
+                    pLog = block_buffer_byte_print(p_frag->p_buffer,p_frag->i_buffer);
+                    msg_Dbg( p_dec, "the old sps is:%s",pLog);
+                    free(pLog);*/
+
+                }
+                else
+                {
+                    msg_Dbg( p_dec, "write_sps_no_decoder_delay_flag_on_zx_platom() failed!");
+                }
+                if(bNeedPutOldSPS)
+                    PutSPS( p_dec, p_frag );
+                else
+                    block_Release( p_frag );
                 p_sys->b_new_sps = true;
             }
             else
@@ -768,6 +796,11 @@ static block_t *ParseNALBlock( decoder_t *p_dec, bool *pb_ts_used, block_t *p_fr
         block_Release( p_pic );
         p_pic = NULL;
     }
+
+    /*if(p_pic)
+        msg_Warn( p_dec, "NioDebug h264.c thisFrame:%lld,i_nal_type: %d",p_pic->i_pts,i_nal_type);
+    else
+        msg_Warn( p_dec, "NioDebug h264.c i_nal_type: %d",i_nal_type);*/
 
     return p_pic;
 }
@@ -1045,17 +1078,17 @@ static block_t *OutputPicture( decoder_t *p_dec )
     return p_pic;
 }
 
-static void PutSPS( decoder_t *p_dec, block_t *p_frag )
+static bool PutSPS( decoder_t *p_dec, block_t *p_frag )
 {
     decoder_sys_t *p_sys = p_dec->p_sys;
 
     const uint8_t *p_buffer = p_frag->p_buffer;
     size_t i_buffer = p_frag->i_buffer;
 
-    if( !hxxx_strip_AnnexB_startcode( &p_buffer, &i_buffer ) )
+    if( !hxxx_strip_AnnexB_startcode( &p_buffer, &i_buffer ) )  //过滤 0x00/0x00/0x00/0x01,p_buffer后移4位，block_t未变
     {
         block_Release( p_frag );
-        return;
+        return false;
     }
 
     h264_sequence_parameter_set_t *p_sps = h264_decode_sps( p_buffer, i_buffer, true );
@@ -1063,7 +1096,7 @@ static void PutSPS( decoder_t *p_dec, block_t *p_frag )
     {
         msg_Warn( p_dec, "invalid SPS" );
         block_Release( p_frag );
-        return;
+        return false;
     }
 
     /* We have a new SPS */
@@ -1071,6 +1104,8 @@ static void PutSPS( decoder_t *p_dec, block_t *p_frag )
         msg_Dbg( p_dec, "found NAL_SPS (sps_id=%d)", p_sps->i_id );
 
     StoreSPS( p_sys, p_sps->i_id, p_frag, p_sps );
+
+    return true;
 }
 
 static void PutPPS( decoder_t *p_dec, block_t *p_frag )

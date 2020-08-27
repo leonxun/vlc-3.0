@@ -2,7 +2,7 @@
  * packetizer_helper.h: Packetizer helpers
  *****************************************************************************
  * Copyright (C) 2009 Laurent Aimar
- * $Id: f7711895707b7eca77a8bbaee2f10fd4908224a6 $
+ * $Id: 87cc406a95ef759d7a6ede5c18fea83c0bc5bdf9 $
  *
  * Authors: Laurent Aimar <fenrir _AT_ videolan _DOT_ org>
  *
@@ -211,6 +211,7 @@ static inline block_t *packetizer_Packetize( packetizer_t *p_pack, block_t **pp_
             if( !p_pic )
             {
                 p_pack->i_state = STATE_NOSYNC;
+		block_BytestreamCheckStartcodeAndRelease(&p_pack->bytestream,p_pack->p_startcode, p_pack->i_startcode);
                 break;
             }
             if( p_pack->pf_validate( p_pack->p_private, p_pic ) )
