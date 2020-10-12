@@ -15,13 +15,13 @@ ifeq ($(call need_pkg,"live555"),)
 PKGS_FOUND += live555
 endif
 
-#$(TARBALLS)/$(LIVE555_FILE):
-#	$(call download_pkg,$(LIVEDOTCOM_URL),live555)
+$(TARBALLS)/$(LIVE555_FILE):
+	$(call download_pkg,$(LIVEDOTCOM_URL),live555)
 
 $(LIVE555_FOLDER):
 	git clone https://github.com/niozhao/live555_2016.11.28.git $(LIVE555_FOLDER)
 
-.sum-live555: $(LIVE555_FOLDER)
+.sum-live555: $(LIVE555_FILE) $(LIVE555_FOLDER)
 
 LIVE_TARGET = $(error live555 target not defined!)
 ifdef HAVE_LINUX
