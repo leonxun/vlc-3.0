@@ -2,7 +2,7 @@
  * live555.cpp : LIVE555 Streaming Media support.
  *****************************************************************************
  * Copyright (C) 2003-2007 VLC authors and VideoLAN
- * $Id: 141556c17d1ff8690b4ceacee72b649f8be1c2bd $
+ * $Id: 483f51e3294f40a73da1ac3d1353c0e4a523a9c7 $
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *          Derk-Jan Hartman <hartman at videolan. org>
@@ -1943,12 +1943,11 @@ static void StreamRead( void *p_private, unsigned int i_size,
 
     int64_t i_pts = (int64_t)pts.tv_sec * INT64_C(1000000) + (int64_t)pts.tv_usec;
     
-	static int64_t begin_time = i_pts;
-	if (i_pts - begin_time >= 5 * INT64_C(1000000))
+	static int64_t begin_time = 0;
+	if (i_pts - begin_time >= 30 * INT64_C(1000000))
 	{
 		begin_time = i_pts;
-		//每隔一段时间检查下socket receive buffer大小，因为播放组播rtsp时，若本机就是组播服务器则会出现buffer大小很小0或者2K，
-		//导致接收数据不完整，从而出现花屏现象。
+		//每隔一段时间检查下socket receive buffer大小，若bufferSize太小，会导致接收数据不完整，从而出现花屏现象。
 		MediaSubsession         *sub = NULL;
 		MediaSubsessionIterator iter(*p_sys->ms);
 		while ((sub = iter.next()) != NULL)
@@ -1972,18 +1971,10 @@ static void StreamRead( void *p_private, unsigned int i_size,
 			if (bGet && sub->rtpSource())
 			{
 				int fd = sub->rtpSource()->RTPgs()->socketNum();
-				unsigned result = 0;
-				result = getReceiveBufferSize(*p_sys->env, fd);
-
-				//msg_Info(p_demux, "streamread getReceiveBufferSize %s result:%u ", sub->mediumName(), result);
-
-				if (result < 50 * 1024)
-				{
-					/* Increase the buffer size */
-					unsigned res = 0;
-					res = increaseReceiveBufferTo(*p_sys->env, fd, i_receive_buffer);
-					//msg_Info(p_demux, "streamread increaseReceiveBufferTo %u, result:%u, info:%s", i_receive_buffer, res, buffer);
-				}
+				/* Increase the buffer size */
+				unsigned res = 0;
+				res = increaseReceiveBufferTo(*p_sys->env, fd, i_receive_buffer);
+				//msg_Info(p_demux, "streamread increaseReceiveBufferTo %u, result:%u, info:%s", i_receive_buffer, res, buffer);
 			}
 		}
 	}
