@@ -2,7 +2,7 @@
  * live555.cpp : LIVE555 Streaming Media support.
  *****************************************************************************
  * Copyright (C) 2003-2007 VLC authors and VideoLAN
- * $Id: 483f51e3294f40a73da1ac3d1353c0e4a523a9c7 $
+ * $Id$
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *          Derk-Jan Hartman <hartman at videolan. org>
@@ -287,7 +287,15 @@ static unsigned char* parseVorbisConfigStr( char const* configStr,
 
 static char *passwordLessURL( vlc_url_t *url );
 
-#define PCR_OBS (CLOCK_FREQ / 4)
+/*****************************************************************************
+ * why the original vlc code use PCR_OBS,PCR_OFF ? the value is 250*1000
+ * it caused rtsp stream show delay 250ms! so re-define the value,change to 0.
+ * by nio
+ *****************************************************************************/
+//#define PCR_OBS (CLOCK_FREQ / 4)
+//#define PCR_OFF PCR_OBS
+
+#define PCR_OBS (0)
 #define PCR_OFF PCR_OBS
 
 /*****************************************************************************
@@ -1425,7 +1433,6 @@ static int Demux( demux_t *p_demux )
     if( b_send_pcr )
     {
         mtime_t i_minpcr = VLC_TS_INVALID;
-		mtime_t i_Videopcr = VLC_TS_INVALID;
         bool b_need_flush = false;
 
         /* Check for gap in pts value */
@@ -1440,13 +1447,13 @@ static int Demux( demux_t *p_demux )
             /* Check for gap in pts value */
             b_need_flush |= (tk->b_flushing_discontinuity);
 
-            if( i_minpcr == VLC_TS_INVALID || ( tk->i_pcr != VLC_TS_INVALID && i_minpcr > tk->i_pcr ) )
+			//use video's pts, it more stable
+            if (i_minpcr == VLC_TS_INVALID || (tk->fmt.i_cat == VIDEO_ES) || (tk->i_pcr != VLC_TS_INVALID && i_minpcr > tk->i_pcr)) {
                 i_minpcr = tk->i_pcr;
-			if(tk->fmt.i_cat == VIDEO_ES)
-				i_Videopcr = tk->i_pcr + PCR_OFF;  //here add PCR_OFF to let es_out_SetPCR
+                if (tk->fmt.i_cat == VIDEO_ES)
+                    break;
+            }
         }
-		if(i_Videopcr != VLC_TS_INVALID)
-			i_minpcr = i_Videopcr;
 		
         if( p_sys->i_pcr > VLC_TS_INVALID && b_need_flush )
         {
@@ -1464,7 +1471,7 @@ static int Demux( demux_t *p_demux )
                 tk->i_next_block_flags |= BLOCK_FLAG_DISCONTINUITY;
             }
             if( p_sys->i_pcr != VLC_TS_INVALID )
-                es_out_SetPCR( p_demux->out, VLC_TS_0 +
+                es_out_SetPCR( p_demux->out, /*VLC_TS_0 +*/
                                __MAX(0, p_sys->i_pcr - PCR_OFF) );
         }
         else if( p_sys->i_pcr == VLC_TS_INVALID ||
@@ -1472,7 +1479,7 @@ static int Demux( demux_t *p_demux )
         {
             p_sys->i_pcr = __MAX(0, i_minpcr - PCR_OFF);
             if( p_sys->i_pcr != VLC_TS_INVALID )
-                es_out_SetPCR( p_demux->out, VLC_TS_0 + p_sys->i_pcr );
+                es_out_SetPCR( p_demux->out, /*VLC_TS_0 +*/ p_sys->i_pcr );   //why add VLC_TS_0 ?
         }
     }
 
