@@ -2,7 +2,7 @@
  * es_out.c: Es Out handler for input.
  *****************************************************************************
  * Copyright (C) 2003-2004 VLC authors and VideoLAN
- * $Id$
+ * $Id: ddd5c286b7caafc23c3e11636b8ca867bc5d07f5 $
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *          Jean-Paul Saman <jpsaman #_at_# m2x dot nl>
@@ -704,8 +704,6 @@ static void EsOutDecodersStopBuffering( es_out_t *out, bool b_forced )
 
     input_clock_ChangeSystemOrigin( p_sys->p_pgrm->p_clock, true,
                                     i_current_date + i_wakeup_delay - i_buffering_duration );
-									
-	input_clock_ChangeDriftStartPoint( p_sys->p_pgrm->p_clock, i_current_date);
 
     for( int i = 0; i < p_sys->i_es; i++ )
     {
