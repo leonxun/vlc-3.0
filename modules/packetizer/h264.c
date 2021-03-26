@@ -2,7 +2,7 @@
  * h264.c: h264/avc video packetizer
  *****************************************************************************
  * Copyright (C) 2001, 2002, 2006 VLC authors and VideoLAN
- * $Id: 79e7931489645016f08399c21e7779a7b2c13cee $
+ * $Id: a5314f54e9466212a02886d83ca425b08e788e01 $
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *          Eric Petit <titer@videolan.org>
@@ -717,8 +717,8 @@ static block_t *ParseNALBlock( decoder_t *p_dec, bool *pb_ts_used, block_t *p_fr
                     bNeedPutOldSPS = !bRes;
                     if(!bRes)
                         msg_Dbg( p_dec, "SPS changed!,But PutSPS error, will reput the old sps!");
-                    else
-                        msg_Dbg( p_dec, "SPS changed!,and PutSPS done! newSize：%u, oldSize:%u",p_newSPSBlock->i_buffer,p_frag->i_buffer);
+                    //else
+                    //    msg_Dbg( p_dec, "SPS changed!,and PutSPS done! newSize：%u, oldSize:%u",p_newSPSBlock->i_buffer,p_frag->i_buffer);
 
 
                     /*char* pLog = block_buffer_byte_print(p_newSPSBlock->p_buffer,p_newSPSBlock->i_buffer);
