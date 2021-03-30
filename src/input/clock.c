@@ -3,7 +3,7 @@
  *****************************************************************************
  * Copyright (C) 1999-2008 VLC authors and VideoLAN
  * Copyright (C) 2008 Laurent Aimar
- * $Id: e1cc0fc0aea89f57c5fe1aede2abef352700b7c9 $
+ * $Id$
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *          Laurent Aimar < fenrir _AT_ videolan _DOT_ org >
@@ -118,7 +118,7 @@
 *  the init value for decoder latency, 1 second is enough.
 *  will auto adjust soon.
 */
-#define INIT_DECODER_LATENCY (1000 * 1000)
+#define INIT_DECODER_LATENCY (10 * 1000)
 /*****************************************************************************
  * Structures
  *****************************************************************************/
@@ -159,7 +159,6 @@ static void    AvgUpdate( average_t *, mtime_t i_value );
 static mtime_t AvgGet( average_t * );
 static void    AvgRescale( average_t *, int i_divider );
 
-static void latencyStatisUpdate(input_clock_t* cl, const mtime_t i_latency, const mtime_t current);
 static void latencyStatisInit(decoder_latency_statistics*);
 /* */
 typedef struct
@@ -584,7 +583,7 @@ mtime_t input_clock_GetWakeup( input_clock_t *cl )
 
 int input_clock_ConvertTS_new(vlc_object_t* p_object, input_clock_t* cl,
 	int* pi_rate, mtime_t* pi_ts0, mtime_t* pi_ts1,
-	mtime_t i_ts_bound, bool bVideoES)
+	mtime_t i_ts_bound, bool bVideoES, bool bUpdateLatency)
 {
 	assert(pi_ts0);
 	vlc_mutex_lock(&cl->lock);
@@ -604,7 +603,7 @@ int input_clock_ConvertTS_new(vlc_object_t* p_object, input_clock_t* cl,
 	}
 
 	/* calculate decoder latency*/
-    if(bVideoES)
+    if(bVideoES && bUpdateLatency)
 	    updateDecoderLatency(cl, *pi_ts0);  //use current stream time to update decoder latency
 
 	/* */
@@ -631,7 +630,10 @@ int input_clock_ConvertTS_new(vlc_object_t* p_object, input_clock_t* cl,
     //log
     mtime_t curNow = mdate();
     //if(bVideoES)
-    //    msg_Err(p_object, "%ld,input_clock_ConvertTS_new inputPTS:%lld => %lld,jitter:%lld,decoderLatency:%lld, Video needwait:%lld, mdate:%lld", GetCurrentThreadId() ,oldPts, *pi_ts0, getNetworkJitter(cl),getDecoderLatency(cl), *pi_ts0 - curNow, curNow);
+    //{
+    //    if(bUpdateLatency)
+    //        msg_Err(p_object, "%ld,input_clock_ConvertTS_new inputPTS:%lld => %lld,jitter:%lld,decoderLatency:%lld, Video needwait:%lld, mdate:%lld", GetCurrentThreadId() ,oldPts, *pi_ts0, getNetworkJitter(cl),getDecoderLatency(cl), *pi_ts0 - curNow, curNow);
+    //}
     //else
     //    msg_Err(p_object, "%ld,input_clock_ConvertTS_new inputPTS:%lld => %lld,jitter:%lld,decoderLatency:%lld, Audio needwait:%lld, mdate:%lld", GetCurrentThreadId(), oldPts, *pi_ts0, getNetworkJitter(cl), getDecoderLatency(cl), *pi_ts0 - curNow, curNow);
 
@@ -692,9 +694,9 @@ int input_clock_ConvertTS_new(vlc_object_t* p_object, input_clock_t* cl,
  *****************************************************************************/
 int input_clock_ConvertTS( vlc_object_t *p_object, input_clock_t *cl,
                            int *pi_rate, mtime_t *pi_ts0, mtime_t *pi_ts1,
-                           mtime_t i_ts_bound, bool bVideoES)
+                           mtime_t i_ts_bound, bool bVideoES,bool bUpdateLatency)
 {
-    return input_clock_ConvertTS_new(p_object,cl,pi_rate,pi_ts0,pi_ts1,i_ts_bound, bVideoES);
+    return input_clock_ConvertTS_new(p_object,cl,pi_rate,pi_ts0,pi_ts1,i_ts_bound, bVideoES, bUpdateLatency);
 
     assert( pi_ts0 );
     vlc_mutex_lock( &cl->lock );
@@ -785,21 +787,19 @@ int input_clock_GetState( input_clock_t *cl,
     return VLC_SUCCESS;
 }
 
-void input_clock_ChangeDriftStartPoint(input_clock_t* cl,mtime_t i_system)
+void  input_clock_ShiftRef(input_clock_t* cl, mtime_t newRefStream)
 {
-	vlc_mutex_lock(&cl->lock);
-
 	assert(cl->b_has_reference);
-	
-    cl->i_next_drift_update = i_system + 33*1000;   //start update drift 33ms later!
+    clock_point_t oldRef = cl->ref;
 
-	//char* buf[4096] = { 0 };
-	//snprintf(buf, 4096, "clock delay drift start point to :i_system:%lld\n", i_system);
+    mtime_t i_offset = newRefStream - cl->ref.i_stream;
+    cl->ref.i_stream += i_offset;
+    cl->ref.i_system += i_offset;
+
+	//char* buf[1024] = { 0 };
+	//snprintf(buf, 1024, "%ld,clock input_clock_ShiftRef called,ref changed,offset:%lld, (%lld,%lld) => (%lld,%lld)\n", GetCurrentThreadId(), i_offset,oldRef.i_stream, oldRef.i_system, cl->ref.i_stream, cl->ref.i_system);
 	//OutputDebugStringA(buf);
-
-	vlc_mutex_unlock(&cl->lock); 
 }
-
 
 void input_clock_ChangeSystemOrigin( input_clock_t *cl, bool b_absolute, mtime_t i_system )
 {
@@ -1028,7 +1028,7 @@ static void AvgRescale( average_t *p_avg, int i_divider )
     p_avg->i_residue = i_tmp % p_avg->i_divider;
 }
 
-static void updateDecoderLatency(input_clock_t* cl, mtime_t i_stream)
+static void updateDecoderLatency(input_clock_t* cl,const mtime_t i_stream)
 {
     bool bFind = false;
     mtime_t the_i_system = 0;
@@ -1060,60 +1060,64 @@ static void updateDecoderLatency(input_clock_t* cl, mtime_t i_stream)
     mtime_t thisLatency = current + 500 - the_i_system;  //mdate() precision is ms,+ 500 to make thisLatency not zero
     if (thisLatency < 0)
         thisLatency = 500;
+    mtime_t latency_changed = __MIN(thisLatency, current + 500 - cl->stat.i_last_time);
     //char buf[1024] = {0};
-    //snprintf(buf, 1024, "updateDecoderLatency, input istream:%lld, get system:%lld, current:%lld, thisLatency:%lld, jitter:%lld, latency:%lld\n", i_stream, the_i_system, current, thisLatency, getNetworkJitter(cl),getDecoderLatency(cl));
+    //snprintf(buf, 1024, "updateDecoderLatency, input istream:%lld, get system:%lld, current:%lld, thisLatency:%lld, latency_changed:%lld, jitter:%lld, latency:%lld\n", i_stream, the_i_system, current, thisLatency, latency_changed, getNetworkJitter(cl),getDecoderLatency(cl));
     //OutputDebugStringA(buf);
-    latencyStatisUpdate(cl,thisLatency, current);
+
+    {
+		decoder_latency_statistics* statics = &cl->stat;
+        //decoder thread will decoder two frame than wait until buffering end [in es_out.c EsOutDecodersStopBuffering()]
+        //so, the first two "latency" is not correct
+		int drop_count = 2;  
+		if (!cl->b_DecoderLoadDone)
+		{
+			cl->b_DecoderLoadDone = true;
+            //change the ref to the first frame, correlation to input_clock_ChangeSystemOrigin()
+            //after call input_clock_ChangeSystemOrigin,means, we want the first frame display at current system time: mdate()
+			input_clock_ShiftRef(cl,i_stream);
+		}
+
+		mtime_t count = statics->i_count - drop_count;
+		if (count >= 0)
+		{
+			/*const int DECODER_LATENCY_STATISTICS_CIRCLE = 30 * 3;  
+			int index = count % DECODER_LATENCY_STATISTICS_CIRCLE;
+			if (0 == index)
+			{
+				statics->i_means = 0;
+				statics->i_residue = 0;
+			}
+			const mtime_t tmp = statics->i_means * index + latency_changed + statics->i_residue;
+			statics->i_means = tmp / (index + 1);
+			statics->i_residue = tmp % (index + 1);
+			*/
+            statics->i_max = latency_changed;
+            /*if (latency_changed > statics->i_max || INIT_DECODER_LATENCY == statics->i_max)
+			{
+				if (INIT_DECODER_LATENCY == statics->i_max)  //first call
+					statics->i_max = statics->i_means;
+				else
+					statics->i_max = latency_changed;
+				statics->i_maxCount = statics->i_count;
+			}
+
+			if (statics->i_count - statics->i_maxCount >= 1 * 2)
+			{
+				//try decrease
+				statics->i_max = (statics->i_means + latency_changed) / 2;  // the newest latency_changed is more suitable
+				statics->i_maxCount = statics->i_count;
+			}*/
+		}
+		else
+		{
+
+		}
+		statics->i_last_time = current;
+		statics->i_count++;
+    }
 }
 
-static void latencyStatisUpdate(input_clock_t* cl, const mtime_t latency, const mtime_t now)
-{
-    decoder_latency_statistics* statics = &cl->stat;
-    mtime_t latency_changed = __MIN(latency,now + 500 - statics->i_last_time);
-    //drop some data, those value are not correctly, will increase error
-    int drop_count = 0;
-    if (!cl->b_DecoderLoadDone)
-    {
-        drop_count = 1;
-        cl->b_DecoderLoadDone = true;
-    }
-
-    mtime_t count = statics->i_count - drop_count;
-    if (count >= 0)
-    {
-        const int DECODER_LATENCY_STATISTICS_CIRCLE = 30 * 3 * 2;  // 2 : a frame will call this function twice
-        int index = count % DECODER_LATENCY_STATISTICS_CIRCLE;
-        if (0 == index)
-        {
-            statics->i_means = 0;
-            statics->i_residue = 0;
-        }
-        const mtime_t tmp = statics->i_means * index + latency_changed + statics->i_residue;
-        statics->i_means = tmp / (index + 1);
-        statics->i_residue = tmp % (index + 1);
-        if (latency_changed > statics->i_max || INIT_DECODER_LATENCY == statics->i_max)
-        {
-            if(INIT_DECODER_LATENCY == statics->i_max)  //first call
-                statics->i_max = statics->i_means; 
-            else
-                statics->i_max = (latency_changed * 3 + statics->i_max) / 4;
-			statics->i_maxCount = statics->i_count;
-        }
-
-        if (statics->i_count - statics->i_maxCount >= 1 * 2) 
-        {
-            //try decrease
-            statics->i_max = (statics->i_means + latency_changed) / 2;  // the newest latency_changed is more suitable
-			statics->i_maxCount = statics->i_count;
-        }
-    }
-    else
-    {
-        
-    }
-    statics->i_last_time = now;
-    statics->i_count++;
-}
 
 static void latencyStatisInit(decoder_latency_statistics* st)
 {
@@ -1134,4 +1138,3 @@ static mtime_t getNetworkJitter(input_clock_t* cl)
 {
     return cl->drift.i_maxOffset;
 }
-
