@@ -2,7 +2,7 @@
  * live555.cpp : LIVE555 Streaming Media support.
  *****************************************************************************
  * Copyright (C) 2003-2007 VLC authors and VideoLAN
- * $Id$
+ * $Id: 1a61e526d257d9c93473a35203421300a4c4a608 $
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *          Derk-Jan Hartman <hartman at videolan. org>
@@ -90,7 +90,8 @@ static void Close( vlc_object_t * );
 #define FRAME_BUFFER_SIZE_LONGTEXT N_("RTSP start frame buffer size of the video " \
     "track, can be increased in case of broken pictures due " \
     "to too small buffer.")
-#define DEFAULT_FRAME_BUFFER_SIZE 250000
+//#define DEFAULT_FRAME_BUFFER_SIZE 250000
+#define DEFAULT_FRAME_BUFFER_SIZE (250000 * 4)     //increase buffer size for 4K I frame 
 
 vlc_module_begin ()
     set_description( N_("RTP/RTSP/SDP demuxer (using Live555)" ) )

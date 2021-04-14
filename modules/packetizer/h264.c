@@ -2,7 +2,7 @@
  * h264.c: h264/avc video packetizer
  *****************************************************************************
  * Copyright (C) 2001, 2002, 2006 VLC authors and VideoLAN
- * $Id: a5314f54e9466212a02886d83ca425b08e788e01 $
+ * $Id: 23904c416d9f6548d9a36df8cc6bab4ad8bbf194 $
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *          Eric Petit <titer@videolan.org>

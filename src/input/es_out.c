@@ -2,7 +2,7 @@
  * es_out.c: Es Out handler for input.
  *****************************************************************************
  * Copyright (C) 2003-2004 VLC authors and VideoLAN
- * $Id: ddd5c286b7caafc23c3e11636b8ca867bc5d07f5 $
+ * $Id: 05af0a45b4b84b6adf5f3f5565efb09e4e788f3f $
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *          Jean-Paul Saman <jpsaman #_at_# m2x dot nl>
